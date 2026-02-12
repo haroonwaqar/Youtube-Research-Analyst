@@ -1,6 +1,7 @@
 from langchain_community.document_loaders import YoutubeLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+# Get the video transcript and split into chunks
 def get_video_chunks(url):
 
     loader = YoutubeLoader.from_youtube_url(url, add_video_info=False)
