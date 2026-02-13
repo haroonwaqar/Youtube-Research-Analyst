@@ -17,9 +17,17 @@ A Retrieval-Augmented Generation (RAG) application that allows users to have sem
 - **UI:** Streamlit
 - **Environment:** Python 3.13
 
-## System Architecture
-1. **Ingestion Layer:** Extracts transcripts via `youtube-transcript-api`.
-2. **Transformation Layer:** Implements `RecursiveCharacterTextSplitter` to maintain semantic integrity across chunks.
-3. **Embedding Layer:** Generates 384-dimensional vectors using the local Mac GPU.
-4. **Retrieval Layer:** Performs **Cosine Similarity** search to find the top $k$ relevant context chunks.
-5. **Generation Layer:** Augments the LLM prompt with retrieved context to produce fact-based answers.
+## How it Works (The Pipeline)
+
+1. **Ingestion Layer:** Utilizing the youtube transcript api to extract raw text data directly from video transcripts.
+2. **Transformation Layer:** Employs a **RecursiveCharacterTextSplitter** with a specific chunk size and overlap. This ensures that technical concepts aren't lost between fragments, maintaining **semantic integrity**.
+3. **Embedding Layer:** Converts text chunks into **384-dimensional vectors** using the hugging face model. This process is offloaded to the **local Mac GPU (MPS)** for high-speed parallel processing.
+4. **Retrieval Layer:** When a query is made, **ChromaDB** calculates the **Cosine Similarity** between the question's vector and the stored transcript vectors to identify the top $k$ most relevant context pieces.
+5. **Generation Layer:** The retrieved context is injected into a custom system prompt. This context-rich prompt is then sent to **Llama 3.3 (via Groq)** to generate an accurate, fact-grounded response.
+
+## Screenshot
+### The Stanford CS230 Lecture 1: Introduction to Deep Learning is used here to demonstrate the tool. 
+![Home](<screenshots/img1.png>)
+![Home](<screenshots/img2.png>)
+![Home](<screenshots/img3.png>)
+Link to the Youtube Lecture: <https://youtu.be/_NLHFoVNlbg?si=1zlZg1D3vukTZMNe>
