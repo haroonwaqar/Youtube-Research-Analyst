@@ -1,6 +1,8 @@
 # YouTube Research Analyst
 
-A Retrieval-Augmented Generation (RAG) application that allows users to have semantically grounded conversations with YouTube video transcripts. Built with **LangChain**, **ChromaDB**, and **Groq**, optimized for **Apple Silicon GPU (MPS)**.
+A Retrieval-Augmented Generation (RAG) application that allows users to have semantically grounded conversations with YouTube video transcripts. Built with **LangChain**, **ChromaDB**, and **Groq**, optimized for **Apple Silicon GPU (MPS)**. 
+
+[Read the project story on Medium](https://medium.com/@haroonwaqar1234/spotlight-search-but-for-2-hour-youtube-lectures-2c9586bbcd36)
 
 ## Features
 - **Semantic Retrieval:** Uses high-dimensional vector embeddings to understand the context of questions, moving beyond simple keyword matching.
@@ -30,4 +32,4 @@ A Retrieval-Augmented Generation (RAG) application that allows users to have sem
 ![Home](<screenshots/img1.png>)
 ![Home](<screenshots/img2.png>)
 ![Home](<screenshots/img3.png>)
-Link to the Youtube Lecture: <https://youtu.be/_NLHFoVNlbg?si=1zlZg1D3vukTZMNe>
+[Click here for the Stanford Lecture](https://youtu.be/_NLHFoVNlbg?si=1zlZg1D3vukTZMNe)
