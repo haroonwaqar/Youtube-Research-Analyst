@@ -1,6 +1,12 @@
+import os
 import torch
+import hashlib
+import time
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.vectorstores import Chroma
+from langchain_pinecone import PineconeVectorStore
+from pinecone import Pinecone, ServerlessSpec
+
+INDEX_NAME = "yt-research-analyst"
 
 def _get_device():
     """Auto-detect best available device: MPS (Mac GPU) > CUDA > CPU."""
@@ -10,21 +16,69 @@ def _get_device():
         return 'cuda'
     return 'cpu'
 
-def create_vector_db(chunks):
-    device = _get_device()
-    print(f"[vectorStore] Using device: {device}")
-
-    # Initialize the Embedding Model
-    embedding = HuggingFaceEmbeddings(
-        model_name = "all-MiniLM-L6-v2",
-        model_kwargs = {'device': device}
+def get_embedding_model():
+    return HuggingFaceEmbeddings(
+        model_name="all-MiniLM-L6-v2",
+        model_kwargs={'device': _get_device()}
     )
 
-    # Create the Vector Store    
-    vector_db = Chroma.from_documents(
+def _init_pinecone():
+    api_key = os.getenv("PINECONE_API_KEY")
+    if not api_key:
+        raise ValueError("PINECONE_API_KEY variable is missing!")
+    
+    pc = Pinecone(api_key=api_key)
+    
+    # Check if index exists, create if not
+    existing_indexes = [index_info["name"] for index_info in pc.list_indexes()]
+    if INDEX_NAME not in existing_indexes:
+        print(f"[Pinecone] Creating index '{INDEX_NAME}'...")
+        pc.create_index(
+            name=INDEX_NAME,
+            dimension=384, # Output dimension for all-MiniLM-L6-v2
+            metric="cosine",
+            spec=ServerlessSpec(cloud="aws", region="us-east-1")
+        )
+        # Wait for index to be ready
+        while not pc.describe_index(INDEX_NAME).status['ready']:
+            time.sleep(1)
+            
+    return pc
+
+def check_namespace_exists(url):
+    """Check if a video's transcript has already been embedded."""
+    pc = _init_pinecone()
+    index = pc.Index(INDEX_NAME)
+    namespace = "yt_" + hashlib.md5(url.encode()).hexdigest()
+    
+    stats = index.describe_index_stats()
+    if "namespaces" in stats and namespace in stats["namespaces"]:
+        # Check if vector count > 0
+        if stats["namespaces"][namespace]["vector_count"] > 0:
+            return True
+    return False
+
+def store_vector_db(chunks, url):
+    """Embed and store chunks into Pinecone under a unique namespace."""
+    _init_pinecone()
+    namespace = "yt_" + hashlib.md5(url.encode()).hexdigest()
+    embedding = get_embedding_model()
+    
+    print(f"[Pinecone] Uploading {len(chunks)} chunks to namespace '{namespace}'...")
+    PineconeVectorStore.from_documents(
         documents=chunks,
         embedding=embedding,
-        # persist_directory="./chroma_db"
+        index_name=INDEX_NAME,
+        namespace=namespace
     )
 
-    return vector_db
+def get_vector_db(url):
+    """Return a Pinecone Vector Store instance pointing to a specific namespace."""
+    namespace = "yt_" + hashlib.md5(url.encode()).hexdigest()
+    embedding = get_embedding_model()
+    
+    return PineconeVectorStore(
+        index_name=INDEX_NAME,
+        embedding=embedding,
+        namespace=namespace
+    )
