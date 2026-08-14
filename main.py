@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 from dataGatherer import get_video_chunks
-from vectorStore import check_namespace_exists, store_vector_db, get_vector_db
+from vectorstore import check_namespace_exists, store_vector_db, get_vector_db
 from langchain_groq import ChatGroq
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
