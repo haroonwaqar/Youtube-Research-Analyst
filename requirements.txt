@@ -11,6 +11,7 @@ langchain-groq
 langchain-pinecone
 langchain-huggingface
 langchain-classic
+langchain_community
 pinecone-client
 youtube-transcript-api
 torch
