@@ -28,27 +28,28 @@ A Retrieval-Augmented Generation (RAG) application that allows users to have sem
 2. **Transformation Layer:** Employs a **RecursiveCharacterTextSplitter** with a specific chunk size and overlap. This ensures that technical concepts aren't lost between fragments, maintaining **semantic integrity**.
 3. **Embedding Layer:** Converts text chunks into **384-dimensional vectors**. To minimize server RAM usage, this heavy mathematical processing is entirely offloaded to the **Hugging Face Inference API**.
 4. **Retrieval Layer:** When a query is made, **Pinecone** calculates the **Cosine Similarity** between the question's vector and the cloud-stored transcript vectors to identify the top $k$ most relevant context pieces. Each video is strictly isolated in its own hash-based namespace.
-5. **Generation Layer:** The retrieved context is injected into a strict system prompt designed to prevent prompt injection. This context-rich prompt is then sent to **Llama 3.3 (via Groq)** and streamed back to the frontend in real-time.
+5. **Generation Layer:** The retrieved context is injected into a strict system prompt designed to prevent prompt injection. This context-rich prompt is then sent to **openai/gpt-oss-120b (via Groq)** and streamed back to the frontend in real-time.
 
 ## Key Engineering Decisions & Architecture Evolutions
 
 Building and scaling this application required balancing speed, resource constraints, and accuracy. Here are the major architectural decisions made during development:
 
-### 1. Hardware-Accelerated Embeddings
-- **The Problem:** Generating 384-dimensional vectors for thousands of text chunks on the CPU is highly inefficient and creates a massive bottleneck during initial ingestion.
-- **The Decision:** Configured PyTorch and the HuggingFace `all-MiniLM-L6-v2` model to utilize **Metal Performance Shaders (MPS)**, offloading matrix multiplications to the Mac's GPU (or CUDA where available).
-- **The Impact:** Drastically reduced the time it takes to process and embed a 2-hour lecture.
+### 1. From Hardware-Acceleration to Cloud Inference
+- **Phase 1 (MPS Optimization):** Generating vectors on the CPU was highly inefficient, so we initially configured PyTorch to utilize **Metal Performance Shaders (MPS)** for local GPU acceleration.
+- **Phase 2 (The Heroku RAM Wall):** Deploying this PyTorch solution to Heroku instantly crashed the server with `R14 Memory Quota Exceeded` errors, because the dependencies required >1GB of RAM, completely shattering Heroku's strict 512MB limit.
+- **The Final Decision:** Deleted local PyTorch dependencies entirely and completely offloaded embedding generation to the **Hugging Face Inference API** via `HuggingFaceEndpointEmbeddings`.
+- **The Impact:** Dropped the application's resting RAM usage down to ~80MB while maintaining blazing fast embedding speeds, ensuring 100% uptime on the smallest cloud instances.
 
 ### 2. API-Based Ingestion vs. Audio Transcription
-- **The Problem:** Processing video audio locally using a speech-to-text model (like Whisper) would require massive compute power and slow down the user experience.
-- **The Decision:** Bypassed audio processing entirely by utilizing `youtube-transcript-api` to extract the hidden text directly from YouTube's servers.
-- **The Impact:** Achieved near-instantaneous data extraction with zero local compute cost.
+- **The Problem:** Processing video audio locally using an AI speech-to-text model (like Whisper) would require massive compute power, delay the user experience by minutes, and cost significant API credits.
+- **The Decision:** Bypassed audio processing entirely by utilizing the **Apify Transcript Scraper** to extract the hidden closed-captions text directly from YouTube's servers.
+- **The Impact:** Achieved near-instantaneous data extraction with zero AI audio compute cost.
 
 ### 3. Model Selection
-- **The Problem:** A RAG pipeline requires an Embedding model to generate vectors, and an LLM to generate the final response. Choosing heavy models would slow down the app and skyrocket API costs.
+- **The Problem:** A RAG pipeline requires an Embedding model to generate vectors, and an LLM to generate the final response. Using monolithic models or local processing slows down the app and skyrockets server costs.
 - **The Decision:** 
-  - **Embeddings:** Selected `all-MiniLM-L6-v2` because it is exceptionally lightweight (~80MB) yet highly optimized for semantic search. This allows the backend to embed 2-hour long transcripts instantly without requiring a massive VRAM footprint.
-  - **LLM:** Selected `Llama-3.3-70b-versatile` hosted on **Groq**. Llama 3.3 offers GPT-4 class reasoning capabilities necessary for understanding complex lecture topics. By hosting it on Groq's custom LPU (Language Processing Unit) architecture, the app achieves unparalleled inference speeds (>500 tokens/second), enabling instantaneous, word-by-word streaming responses at a fraction of the cost of OpenAI.
+  - **Embeddings:** Selected `all-MiniLM-L6-v2` via the **Hugging Face Inference API**. This model is highly optimized for semantic search. By utilizing Hugging Face's serverless endpoints, we offload all vector mathematical processing to the cloud, allowing our backend to remain incredibly lightweight.
+  - **LLM:** Selected the **`openai/gpt-oss-120b`** model hosted on **Groq**, as the previous Llama models were decommissioned. This powerful open-source model provides exceptional reasoning capabilities necessary for understanding complex lecture topics. By hosting it on Groq's custom LPU (Language Processing Unit) architecture, the app achieves unparalleled inference speeds (>500 tokens/second), enabling instantaneous, word-by-word streaming responses at a fraction of the cost of legacy providers.
 
 ### 4. Modular Architecture
 - **The Problem:** The app was originally a monolithic Streamlit script. This made debugging difficult, tied UI logic to backend processing, and introduced unnecessary frontend bloat.
@@ -70,12 +71,7 @@ Building and scaling this application required balancing speed, resource constra
 - **The Decision:** Detached the chat input bar (`position: fixed`) and explicitly padded the bottom using `env(safe-area-inset-bottom)`. Implemented `touch-action: manipulation` globally.
 - **The Impact:** Prevented UI cutoff and killed accidental double-tap zooming, ensuring the web app feels indistinguishable from a native application.
 
-### 8. Cloud Inference for Strict RAM Limits
-- **The Problem:** Deploying to Heroku's Eco/Basic tier enforces a strict 512MB RAM limit. Loading `sentence-transformers` and PyTorch locally to generate embeddings required over 1GB of RAM, instantly crashing the server in production with `R14 Memory Quota Exceeded` errors.
-- **The Decision:** Deleted local PyTorch dependencies entirely and offloaded embedding generation to the **Hugging Face Inference API** via `HuggingFaceEndpointEmbeddings`.
-- **The Impact:** Dropped the application's resting RAM usage down to ~177MB, ensuring 100% uptime on the smallest, cheapest cloud instances.
-
-### 9. Defeating the YouTube Bot Wall
+### 8. Defeating the YouTube Bot Wall
 - **The Problem:** YouTube actively flags and permanently blocks IP addresses belonging to cloud datacenters (like AWS and Heroku). Using standard scraping libraries like `youtube-transcript-api` or even free residential proxies resulted in `429 Too Many Requests` (Google Captcha) bans that blocked our transcript extraction.
 - **The Decision:** Migrated transcript extraction to **Apify's YouTube Transcript Scraper** via the official `apify-client`. 
 - **The Impact:** Outsourced the scraping to a robust, premium residential proxy network that gracefully handles IP rotation and captcha solving, permanently bypassing YouTube's bot detection.
