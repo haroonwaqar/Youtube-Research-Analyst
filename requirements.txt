@@ -1,5 +1,3 @@
---extra-index-url https://download.pytorch.org/whl/cpu
-
 fastapi
 starlette
 uvicorn
@@ -25,10 +23,6 @@ openai
 tiktoken
 
 huggingface_hub
-sentence-transformers
-tokenizers
-safetensors
-torch==2.10.0+cpu
 
 numpy
 pandas
@@ -36,6 +30,7 @@ scikit-learn
 scipy
 
 youtube-transcript-api
+yt-dlp
 requests
 httpx
 tenacity
