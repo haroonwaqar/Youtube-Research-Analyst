@@ -1,25 +1,21 @@
 import os
-import torch
 import hashlib
 import time
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEndpointEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from pinecone import Pinecone, ServerlessSpec
 
 INDEX_NAME = "yt-research-analyst"
 
-def _get_device():
-    """Auto-detect best available device: MPS (Mac GPU) > CUDA > CPU."""
-    if torch.backends.mps.is_available():
-        return 'mps'
-    elif torch.cuda.is_available():
-        return 'cuda'
-    return 'cpu'
-
 def get_embedding_model():
-    return HuggingFaceEmbeddings(
-        model_name="all-MiniLM-L6-v2",
-        model_kwargs={'device': _get_device()}
+    hf_token = os.getenv("HF_TOKEN")
+    if not hf_token:
+        raise ValueError("HF_TOKEN environment variable is missing! Please add it to your .env file or Heroku Config Vars.")
+        
+    return HuggingFaceEndpointEmbeddings(
+        model="sentence-transformers/all-MiniLM-L6-v2",
+        task="feature-extraction",
+        huggingfacehub_api_token=hf_token
     )
 
 def _init_pinecone():
