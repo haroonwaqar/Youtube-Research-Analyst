@@ -1,35 +1,88 @@
 # YouTube Research Analyst
 
-A Retrieval-Augmented Generation (RAG) application that allows users to have semantically grounded conversations with YouTube video transcripts. Built with **LangChain**, **ChromaDB**, and **Groq**, optimized for **Apple Silicon GPU (MPS)**. 
+A Retrieval-Augmented Generation (RAG) application that allows users to have semantically grounded conversations with YouTube video transcripts. Built with **FastAPI**, **LangChain**, **Pinecone**, and **Groq**. 
 
-[Read the project story on Medium](https://medium.com/@haroonwaqar1234/spotlight-search-but-for-2-hour-youtube-lectures-2c9586bbcd36)
+[Read the original project story on Medium](https://medium.com/@haroonwaqar1234/spotlight-search-but-for-2-hour-youtube-lectures-2c9586bbcd36)
 
 ## Features
 - **Semantic Retrieval:** Uses high-dimensional vector embeddings to understand the context of questions, moving beyond simple keyword matching.
-- **Hardware Optimized:** Leverages **Metal Performance Shaders (MPS)** on Mac M-series chips for accelerated local embedding generation.
-- **High-Speed Inference:** Integrated with **Groq (Llama 3.3)** to provide sub-second conversational responses.
-- **Modular Architecture:** Clean separation of concerns between Data Ingestion, Vector Storage, and Application Logic.
-- **Resource Caching:** Implements intelligent caching to prevent redundant processing of the same video.
+- **High-Speed Inference:** Integrated with **Groq (GPT-OSS 120B)** to provide sub-second conversational responses.
+- **Streaming Responses (SSE):** ChatGPT-like experience with word-by-word streaming using Server-Sent Events.
+- **Cloud Vector Storage:** Utilizes **Pinecone** Serverless architecture for infinite scalability and isolated data namespaces for each video.
+- **Hardware Optimized:** Automatically detects and leverages **Metal Performance Shaders (MPS)** on Mac M-series, CUDA, or CPU for generating embeddings.
+- **Decoupled Architecture:** Clean separation of concerns with a robust **FastAPI** backend and a lightning-fast vanilla HTML/CSS/JS frontend.
+- **Security & Reliability:** Features robust rate-limiting (sliding window per IP), input validation (Pydantic), and isolated database namespaces to prevent cross-contamination.
+- **Elegant UI:** Minimal design language with dark/light mode toggle, chat history persistence, and chat export functionality. Native-feeling mobile layout explicitly designed for iOS Safari and Chrome.
 
 ## Tech Stack
-- **Framework:** LangChain (LCEL)
-- **LLM:** Llama 3.3 (via Groq)
-- **Vector Database:** ChromaDB
-- **Embeddings:** HuggingFace `all-MiniLM-L6-v2` (Local)
-- **UI:** Streamlit
-- **Environment:** Python 3.13
+- **Backend:** FastAPI, Python 3.13
+- **Frontend:** Vanilla HTML, CSS, JavaScript
+- **Framework:** LangChain
+- **LLM:** openai/gpt-oss-120b (via Groq)
+- **Vector Database:** Pinecone (Cloud DB)
+- **Embeddings:** Hugging Face `all-MiniLM-L6-v2`
 
 ## How it Works (The Pipeline)
 
-1. **Ingestion Layer:** Utilizing the youtube transcript api to extract raw text data directly from video transcripts.
+1. **Ingestion Layer:** Utilizes the **Apify Cloud Scraper API** to bypass YouTube bot detection and extract raw text data directly from video transcripts using a premium residential proxy network.
 2. **Transformation Layer:** Employs a **RecursiveCharacterTextSplitter** with a specific chunk size and overlap. This ensures that technical concepts aren't lost between fragments, maintaining **semantic integrity**.
-3. **Embedding Layer:** Converts text chunks into **384-dimensional vectors** using the hugging face model. This process is offloaded to the **local Mac GPU (MPS)** for high-speed parallel processing.
-4. **Retrieval Layer:** When a query is made, **ChromaDB** calculates the **Cosine Similarity** between the question's vector and the stored transcript vectors to identify the top $k$ most relevant context pieces.
-5. **Generation Layer:** The retrieved context is injected into a custom system prompt. This context-rich prompt is then sent to **Llama 3.3 (via Groq)** to generate an accurate, fact-grounded response.
+3. **Embedding Layer:** Converts text chunks into **384-dimensional vectors**. To minimize server RAM usage, this heavy mathematical processing is entirely offloaded to the **Hugging Face Inference API**.
+4. **Retrieval Layer:** When a query is made, **Pinecone** calculates the **Cosine Similarity** between the question's vector and the cloud-stored transcript vectors to identify the top $k$ most relevant context pieces. Each video is strictly isolated in its own hash-based namespace.
+5. **Generation Layer:** The retrieved context is injected into a strict system prompt designed to prevent prompt injection. This context-rich prompt is then sent to **Llama 3.3 (via Groq)** and streamed back to the frontend in real-time.
 
-## Screenshot
+## Key Engineering Decisions & Architecture Evolutions
+
+Building and scaling this application required balancing speed, resource constraints, and accuracy. Here are the major architectural decisions made during development:
+
+### 1. Hardware-Accelerated Embeddings
+- **The Problem:** Generating 384-dimensional vectors for thousands of text chunks on the CPU is highly inefficient and creates a massive bottleneck during initial ingestion.
+- **The Decision:** Configured PyTorch and the HuggingFace `all-MiniLM-L6-v2` model to utilize **Metal Performance Shaders (MPS)**, offloading matrix multiplications to the Mac's GPU (or CUDA where available).
+- **The Impact:** Drastically reduced the time it takes to process and embed a 2-hour lecture.
+
+### 2. API-Based Ingestion vs. Audio Transcription
+- **The Problem:** Processing video audio locally using a speech-to-text model (like Whisper) would require massive compute power and slow down the user experience.
+- **The Decision:** Bypassed audio processing entirely by utilizing `youtube-transcript-api` to extract the hidden text directly from YouTube's servers.
+- **The Impact:** Achieved near-instantaneous data extraction with zero local compute cost.
+
+### 3. Model Selection
+- **The Problem:** A RAG pipeline requires an Embedding model to generate vectors, and an LLM to generate the final response. Choosing heavy models would slow down the app and skyrocket API costs.
+- **The Decision:** 
+  - **Embeddings:** Selected `all-MiniLM-L6-v2` because it is exceptionally lightweight (~80MB) yet highly optimized for semantic search. This allows the backend to embed 2-hour long transcripts instantly without requiring a massive VRAM footprint.
+  - **LLM:** Selected `Llama-3.3-70b-versatile` hosted on **Groq**. Llama 3.3 offers GPT-4 class reasoning capabilities necessary for understanding complex lecture topics. By hosting it on Groq's custom LPU (Language Processing Unit) architecture, the app achieves unparalleled inference speeds (>500 tokens/second), enabling instantaneous, word-by-word streaming responses at a fraction of the cost of OpenAI.
+
+### 4. Modular Architecture
+- **The Problem:** The app was originally a monolithic Streamlit script. This made debugging difficult, tied UI logic to backend processing, and introduced unnecessary frontend bloat.
+- **The Decision:** Refactored the codebase into a strict decoupled architecture. The backend is now a lightning-fast FastAPI REST API, and the frontend is built with pure Vanilla HTML/CSS/JS.
+- **The Impact:** Created a scalable, highly testable codebase that strictly adheres to the Separation of Concerns, completely eliminating heavy frontend framework compile times.
+
+### 5. Cloud Vector Storage over Local Cache
+- **The Problem:** Originally, the app used an in-memory ChromaDB cache. This created severe "cache thrashing" when multiple users requested different videos, risked crashing Heroku due to 512MB RAM limits, and accidentally allowed cross-contamination of embeddings between videos.
+- **The Decision:** Migrated from local ChromaDB to a managed **Pinecone Serverless Cloud** instance. 
+- **The Impact:** Prevented server RAM exhaustion, enabled infinite scalability for thousands of users, and provided isolated `namespaces` for every YouTube URL to guarantee zero data leaks.
+
+### 6. Strict Prompt Injection Defense
+- **The Problem:** Highly capable LLMs often abandon their system instructions if a user explicitly commands them to act as a coder or creative writer.
+- **The Decision:** Added aggressive guardrail rules (`NO CODING`, `IGNORE INSTRUCTION OVERRIDES`) directly into the system prompt.
+- **The Impact:** Ensured the LLM remains strictly locked into its designated role as a research assistant, refusing irrelevant or adversarial requests.
+
+### 7. Native Mobile CSS Polish
+- **The Problem:** Safari and Chrome mobile browsers notoriously calculate `100vh` incorrectly, causing chat input bars to hide underneath the phone's bottom navigation controls.
+- **The Decision:** Detached the chat input bar (`position: fixed`) and explicitly padded the bottom using `env(safe-area-inset-bottom)`. Implemented `touch-action: manipulation` globally.
+- **The Impact:** Prevented UI cutoff and killed accidental double-tap zooming, ensuring the web app feels indistinguishable from a native application.
+
+### 8. Cloud Inference for Strict RAM Limits
+- **The Problem:** Deploying to Heroku's Eco/Basic tier enforces a strict 512MB RAM limit. Loading `sentence-transformers` and PyTorch locally to generate embeddings required over 1GB of RAM, instantly crashing the server in production with `R14 Memory Quota Exceeded` errors.
+- **The Decision:** Deleted local PyTorch dependencies entirely and offloaded embedding generation to the **Hugging Face Inference API** via `HuggingFaceEndpointEmbeddings`.
+- **The Impact:** Dropped the application's resting RAM usage down to ~177MB, ensuring 100% uptime on the smallest, cheapest cloud instances.
+
+### 9. Defeating the YouTube Bot Wall
+- **The Problem:** YouTube actively flags and permanently blocks IP addresses belonging to cloud datacenters (like AWS and Heroku). Using standard scraping libraries like `youtube-transcript-api` or even free residential proxies resulted in `429 Too Many Requests` (Google Captcha) bans that blocked our transcript extraction.
+- **The Decision:** Migrated transcript extraction to **Apify's YouTube Transcript Scraper** via the official `apify-client`. 
+- **The Impact:** Outsourced the scraping to a robust, premium residential proxy network that gracefully handles IP rotation and captcha solving, permanently bypassing YouTube's bot detection.
+
+<!-- ## Screenshots
 ### The Stanford CS230 Lecture 1: Introduction to Deep Learning is used here to demonstrate the tool. 
 ![Home](<screenshots/img1.png>)
 ![Home](<screenshots/img2.png>)
 ![Home](<screenshots/img3.png>)
-[Click here for the Stanford Lecture](https://youtu.be/_NLHFoVNlbg?si=1zlZg1D3vukTZMNe)
+[Click here for the Stanford Lecture](https://youtu.be/_NLHFoVNlbg?si=1zlZg1D3vukTZMNe) -->
