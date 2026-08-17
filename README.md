@@ -81,9 +81,9 @@ Building and scaling this application required balancing speed, resource constra
 - **The Impact:** Created a scalable, highly testable codebase that strictly adheres to the Separation of Concerns, completely eliminating heavy frontend framework compile times.
 
 ### 5. Cloud Vector Storage over Local Cache
-- **The Problem:** Originally, the app used an in-memory ChromaDB cache. This created severe "cache thrashing" when multiple users requested different videos, risked crashing Heroku due to 512MB RAM limits, and accidentally allowed cross-contamination of embeddings between videos.
-- **The Decision:** Migrated from local ChromaDB to a managed **Pinecone Serverless Cloud** instance. 
-- **The Impact:** Prevented server RAM exhaustion, enabled infinite scalability for thousands of users, and provided isolated `namespaces` for every YouTube URL to guarantee zero data leaks.
+- **The Problem:** Originally, the app used an in-memory ChromaDB cache. This created severe "cache thrashing" when multiple users requested different videos, risked crashing Heroku due to 512MB RAM limits, and accidentally allowed cross-contamination of embeddings between videos. The app also calls Apify scrapping even when the video is same but different urls from desktop and mobile.
+- **The Decision:** Migrated from local ChromaDB to a managed **Pinecone Serverless Cloud** instance. Add Video ID based isolation and check the pinecone db before calling Apify. 
+- **The Impact:** Prevented server RAM exhaustion, enabled infinite scalability for thousands of users, and provided isolated `namespaces` for every YouTube URL to guarantee zero data leaks. It also saves time and Apify credits.
 
 ### 6. Strict Prompt Injection Defense
 - **The Problem:** Highly capable LLMs often abandon their system instructions if a user explicitly commands them to act as a coder or creative writer.
