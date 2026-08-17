@@ -2,6 +2,8 @@
 
 A Retrieval-Augmented Generation (RAG) application that allows users to have semantically grounded conversations with YouTube video transcripts. Built with **FastAPI**, **LangChain**, **Pinecone**, and **Groq**. 
 
+[Check out the App](https://youtube-research-analyst-33c40f4738cc.herokuapp.com/)
+
 [Read the original project story on Medium](https://medium.com/@haroonwaqar1234/spotlight-search-but-for-2-hour-youtube-lectures-2c9586bbcd36)
 
 ## Features
@@ -9,7 +11,6 @@ A Retrieval-Augmented Generation (RAG) application that allows users to have sem
 - **High-Speed Inference:** Integrated with **Groq (GPT-OSS 120B)** to provide sub-second conversational responses.
 - **Streaming Responses (SSE):** ChatGPT-like experience with word-by-word streaming using Server-Sent Events.
 - **Cloud Vector Storage:** Utilizes **Pinecone** Serverless architecture for infinite scalability and isolated data namespaces for each video.
-- **Hardware Optimized:** Automatically detects and leverages **Metal Performance Shaders (MPS)** on Mac M-series, CUDA, or CPU for generating embeddings.
 - **Decoupled Architecture:** Clean separation of concerns with a robust **FastAPI** backend and a lightning-fast vanilla HTML/CSS/JS frontend.
 - **Security & Reliability:** Features robust rate-limiting (sliding window per IP), input validation (Pydantic), and isolated database namespaces to prevent cross-contamination.
 - **Elegant UI:** Minimal design language with dark/light mode toggle, chat history persistence, and chat export functionality. Native-feeling mobile layout explicitly designed for iOS Safari and Chrome.
@@ -36,9 +37,9 @@ Building and scaling this application required balancing speed, resource constra
 
 ### 1. From Hardware-Acceleration to Cloud Inference
 - **Phase 1 (MPS Optimization):** Generating vectors on the CPU was highly inefficient, so we initially configured PyTorch to utilize **Metal Performance Shaders (MPS)** for local GPU acceleration.
-- **Phase 2 (The Heroku RAM Wall):** Deploying this PyTorch solution to Heroku instantly crashed the server with `R14 Memory Quota Exceeded` errors, because the dependencies required >1GB of RAM, completely shattering Heroku's strict 512MB limit.
+- **Phase 2 (The Heroku RAM Wall):** Deploying this PyTorch solution to Heroku instantly crashed the server with `R14 Memory Quota Exceeded` errors, because the dependencies required >500MB of RAM, completely shattering Heroku's strict 512MB limit.
 - **The Final Decision:** Deleted local PyTorch dependencies entirely and completely offloaded embedding generation to the **Hugging Face Inference API** via `HuggingFaceEndpointEmbeddings`.
-- **The Impact:** Dropped the application's resting RAM usage down to ~80MB while maintaining blazing fast embedding speeds, ensuring 100% uptime on the smallest cloud instances.
+- **The Impact:** Dropped the application's resting RAM usage down to ~177MB while maintaining blazing fast embedding speeds, ensuring 100% uptime on the smallest cloud instances.
 
 ### 2. API-Based Ingestion vs. Audio Transcription
 - **The Problem:** Processing video audio locally using an AI speech-to-text model (like Whisper) would require massive compute power, delay the user experience by minutes, and cost significant API credits.
@@ -76,9 +77,3 @@ Building and scaling this application required balancing speed, resource constra
 - **The Decision:** Migrated transcript extraction to **Apify's YouTube Transcript Scraper** via the official `apify-client`. 
 - **The Impact:** Outsourced the scraping to a robust, premium residential proxy network that gracefully handles IP rotation and captcha solving, permanently bypassing YouTube's bot detection.
 
-<!-- ## Screenshots
-### The Stanford CS230 Lecture 1: Introduction to Deep Learning is used here to demonstrate the tool. 
-![Home](<screenshots/img1.png>)
-![Home](<screenshots/img2.png>)
-![Home](<screenshots/img3.png>)
-[Click here for the Stanford Lecture](https://youtu.be/_NLHFoVNlbg?si=1zlZg1D3vukTZMNe) -->
