@@ -4,8 +4,16 @@ import time
 from langchain_huggingface import HuggingFaceEndpointEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from pinecone import Pinecone, ServerlessSpec
+import re
 
 INDEX_NAME = "yt-research-analyst"
+
+def extract_video_id(url):
+    """Extracts the 11-character YouTube video ID from standard or shortened URLs."""
+    match = re.search(r'(?:v=|\/)([0-9A-Za-z_-]{11}).*', url)
+    if match:
+        return match.group(1)
+    return url
 
 def get_embedding_model():
     hf_token = os.getenv("HF_TOKEN")
@@ -45,7 +53,8 @@ def check_namespace_exists(url):
     """Check if a video's transcript has already been embedded."""
     pc = _init_pinecone()
     index = pc.Index(INDEX_NAME)
-    namespace = "yt_" + hashlib.md5(url.encode()).hexdigest()
+    video_id = extract_video_id(url)
+    namespace = "yt_" + hashlib.md5(video_id.encode()).hexdigest()
     
     stats = index.describe_index_stats()
     if "namespaces" in stats and namespace in stats["namespaces"]:
@@ -57,7 +66,8 @@ def check_namespace_exists(url):
 def store_vector_db(chunks, url):
     """Embed and store chunks into Pinecone under a unique namespace."""
     _init_pinecone()
-    namespace = "yt_" + hashlib.md5(url.encode()).hexdigest()
+    video_id = extract_video_id(url)
+    namespace = "yt_" + hashlib.md5(video_id.encode()).hexdigest()
     embedding = get_embedding_model()
     
     print(f"[Pinecone] Uploading {len(chunks)} chunks to namespace '{namespace}'...")
@@ -70,7 +80,8 @@ def store_vector_db(chunks, url):
 
 def get_vector_db(url):
     """Return a Pinecone Vector Store instance pointing to a specific namespace."""
-    namespace = "yt_" + hashlib.md5(url.encode()).hexdigest()
+    video_id = extract_video_id(url)
+    namespace = "yt_" + hashlib.md5(video_id.encode()).hexdigest()
     embedding = get_embedding_model()
     
     return PineconeVectorStore(
