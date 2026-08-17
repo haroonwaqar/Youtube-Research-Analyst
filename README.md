@@ -33,6 +33,29 @@ A Retrieval-Augmented Generation (RAG) application that allows users to have sem
 
 ## Key Engineering Decisions & Architecture Evolutions
 
+### High-Level Architecture
+Visual map of how data flows through your application when a user asks a question about a video:
+
+```mermaid
+graph TD
+    User((User)) -->|1. Enters URL & Question| Frontend[Frontend UI<br/>HTML / CSS / JS]
+    
+    subgraph The Orchestrator
+        Frontend -->|2. HTTP POST| API[FastAPI Server]
+    end
+
+    subgraph The Cloud APIs
+        API -->|3. Scrape Request| Apify[Apify Scraper<br/>Extracts Transcript]
+        API -->|4. Text Chunks| HF[Hugging Face API<br/>Generates Embeddings]
+        API -->|5. Store & Search Vectors| Pinecone[(Pinecone DB<br/>Vector Storage)]
+        API -->|6. Prompt & Context| Groq[Groq LPU<br/>Runs gpt-oss-120b]
+    end
+    
+    Groq -.->|7. Word-by-Word Stream| API
+    API -.->|8. Server-Sent Events| Frontend
+    Frontend -.->|9. Updates UI| User
+```
+
 Building and scaling this application required balancing speed, resource constraints, and accuracy. Here are the major architectural decisions made during development:
 
 ### 1. From Hardware-Acceleration to Cloud Inference
